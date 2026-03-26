@@ -1,0 +1,31 @@
+project_name: sorting-optimization
+workspace_dir: ./workspace/sorting
+solution_file: solution.py
+seed_file: examples/sorting_optimization/seed.py
+
+max_versions: 20
+max_wall_time_hours: 1.0
+max_agent_steps_per_variation: 30
+
+llm:
+  provider: openai
+  model: gpt-4o
+  temperature: 0.7
+  max_tokens: 8192
+  timeout: 60.0
+
+supervisor:
+  enabled: true
+  max_failed_attempts: 5
+  stall_window: 3
+  cycle_detection_window: 5
+  redirect_with_llm: true
+
+knowledge_base_dir: examples/sorting_optimization/knowledge
+scoring_module: examples/sorting_optimization/scorer.py
+scoring_class: Scorer
+
+git_persist: true
+log_dir: ./logs/sorting
+log_level: INFO
+verbose: false

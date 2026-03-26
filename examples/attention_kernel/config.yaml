@@ -1,0 +1,31 @@
+project_name: attention-kernel-optimization
+workspace_dir: ./workspace/attention
+solution_file: solution.py
+seed_file: examples/attention_kernel/seed_kernel.py
+
+max_versions: 40
+max_wall_time_hours: 168.0
+max_agent_steps_per_variation: 50
+
+llm:
+  provider: openai
+  model: gpt-4o
+  temperature: 0.7
+  max_tokens: 16384
+  timeout: 120.0
+
+supervisor:
+  enabled: true
+  max_failed_attempts: 10
+  stall_window: 5
+  cycle_detection_window: 8
+  redirect_with_llm: true
+
+knowledge_base_dir: examples/attention_kernel/knowledge
+scoring_module: examples/attention_kernel/scorer.py
+scoring_class: Scorer
+
+git_persist: true
+log_dir: ./logs/attention
+log_level: INFO
+verbose: false

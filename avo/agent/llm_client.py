@@ -193,18 +193,108 @@ class OllamaClient(OpenAIClient):
         self._api_key = ""
 
 
-class OllamaCloudClient(OpenAIClient):
-    """Client for Ollama Cloud (hosted Ollama API).
+class OllamaCloudClient(BaseLLMClient):
+    """Client for Ollama Cloud API (https://ollama.com).
 
-    Same OpenAI-compatible interface but with authentication and a
-    different default base URL.
+    Uses Ollama's native /api/chat endpoint with Bearer token auth.
+    See https://docs.ollama.com/cloud for the API specification.
     """
 
     def __init__(self, config: LLMConfig) -> None:
-        if not config.base_url:
-            config = config.model_copy(update={"base_url": "https://api.ollamacloud.com/v1"})
         super().__init__(config)
-        self._api_key = config.api_key or os.environ.get("OLLAMA_CLOUD_API_KEY", "")
+        self._base_url = config.effective_base_url().rstrip("/")
+        self._api_key = config.api_key or os.environ.get("OLLAMA_API_KEY", "")
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        url = f"{self._base_url}/api/chat"
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        ollama_messages = [self._to_ollama_message(m) for m in messages]
+
+        payload: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": ollama_messages,
+            "stream": False,
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": self.config.max_tokens,
+            },
+        }
+        if tools:
+            payload["tools"] = tools
+
+        logger.debug("Ollama Cloud request to %s model=%s messages=%d", url, self.config.model, len(messages))
+
+        resp = self._http.post(url, json=payload, headers=headers)
+        if resp.status_code != 200:
+            body = resp.text
+            logger.error("Ollama Cloud error %d: %s", resp.status_code, body)
+            resp.raise_for_status()
+        data = resp.json()
+
+        message = data.get("message", {})
+        tool_calls = []
+        for tc in message.get("tool_calls", []):
+            func = tc.get("function", {})
+            args = func.get("arguments", {})
+            tool_calls.append({
+                "id": tc.get("id", ""),
+                "type": "function",
+                "function": {
+                    "name": func.get("name", ""),
+                    "arguments": json.dumps(args) if isinstance(args, dict) else args,
+                },
+            })
+
+        usage = {}
+        if "prompt_eval_count" in data or "eval_count" in data:
+            usage = {
+                "prompt_tokens": data.get("prompt_eval_count", 0),
+                "completion_tokens": data.get("eval_count", 0),
+                "total_tokens": data.get("prompt_eval_count", 0) + data.get("eval_count", 0),
+            }
+
+        return {
+            "content": message.get("content", ""),
+            "tool_calls": tool_calls,
+            "usage": usage,
+            "finish_reason": data.get("done_reason", ""),
+            "raw": data,
+        }
+
+    @staticmethod
+    def _to_ollama_message(msg: dict[str, Any]) -> dict[str, Any]:
+        """Convert an internal (OpenAI-style) message to Ollama native format.
+
+        Ollama's /api/chat expects tool_call arguments as objects (not JSON
+        strings), and tool-result messages use only role + content (no
+        tool_call_id).
+        """
+        result: dict[str, Any] = {"role": msg["role"]}
+
+        if "content" in msg:
+            result["content"] = msg["content"]
+
+        if "tool_calls" in msg:
+            ollama_tcs = []
+            for tc in msg["tool_calls"]:
+                func = tc.get("function", tc)
+                raw_args = func.get("arguments", {})
+                if isinstance(raw_args, str):
+                    try:
+                        raw_args = json.loads(raw_args)
+                    except (json.JSONDecodeError, TypeError):
+                        raw_args = {}
+                ollama_tcs.append({"function": {"name": func.get("name", ""), "arguments": raw_args}})
+            result["tool_calls"] = ollama_tcs
+
+        return result
 
 
 def create_llm_client(config: LLMConfig) -> BaseLLMClient:

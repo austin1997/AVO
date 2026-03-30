@@ -24,7 +24,7 @@ class TestLLMConfig:
 
     def test_ollama_cloud_url(self):
         cfg = LLMConfig(provider=LLMProvider.OLLAMA_CLOUD)
-        assert "ollamacloud" in cfg.effective_base_url()
+        assert cfg.effective_base_url() == "https://ollama.com"
 
 
 class TestEvolutionConfig:

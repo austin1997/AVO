@@ -93,7 +93,7 @@ For Ollama Cloud:
 llm:
   provider: ollama_cloud
   model: llama3
-  api_key: "your-api-key"   # or set OLLAMA_CLOUD_API_KEY env var
+  api_key: "your-api-key"   # or set OLLAMA_API_KEY env var
 ```
 
 ### 4. Run the evolution

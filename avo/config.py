@@ -36,7 +36,7 @@ class LLMConfig(BaseModel):
             LLMProvider.OPENAI: "https://api.openai.com/v1",
             LLMProvider.ANTHROPIC: "https://api.anthropic.com",
             LLMProvider.OLLAMA: "http://localhost:11434/v1",
-            LLMProvider.OLLAMA_CLOUD: "https://api.ollamacloud.com/v1",
+            LLMProvider.OLLAMA_CLOUD: "https://ollama.com",
             LLMProvider.CUSTOM: "http://localhost:8000/v1",
         }
         return defaults[self.provider]

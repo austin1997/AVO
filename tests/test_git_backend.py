@@ -65,3 +65,17 @@ class TestGitBackend:
             assert len(lineage) == 3
             assert lineage.entries[0].solution.version == 0
             assert lineage.entries[2].score.values["x"] == 3.0
+
+
+def test_git_backend_rejects_solution_paths_outside_workspace():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace = Path(tmpdir) / "workspace"
+        outside = Path(tmpdir) / "evil.py"
+        gb = GitBackend(workspace)
+        sol = Solution(source_code="print('evil')", version=1, source_file="../evil.py")
+        score = Score(values={"test": 1.0}, passes_correctness=True)
+
+        with pytest.raises(ValueError, match="escapes workspace"):
+            gb.persist(sol, score)
+
+        assert not outside.exists()

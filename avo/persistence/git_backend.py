@@ -53,12 +53,22 @@ class GitBackend:
     def workspace(self) -> Path:
         return self._workspace
 
+    def _workspace_file_path(self, relative_path: str) -> Path:
+        """Resolve a tracked path while preventing writes outside workspace."""
+        path = Path(relative_path)
+        if path.is_absolute():
+            raise ValueError(f"absolute paths are not allowed: {relative_path}")
+        full = (self._workspace / path).resolve(strict=False)
+        if full != self._workspace and not full.is_relative_to(self._workspace):
+            raise ValueError(f"path escapes workspace: {relative_path}")
+        return full
+
     def persist(self, solution: Solution, score: Score) -> str:
         """Commit a solution and its score to git.
 
         Returns the commit hash.
         """
-        solution_path = self._workspace / solution.source_file
+        solution_path = self._workspace_file_path(solution.source_file)
         solution_path.parent.mkdir(parents=True, exist_ok=True)
         solution_path.write_text(solution.source_code)
 
@@ -73,7 +83,7 @@ class GitBackend:
 
         self._update_lineage_file(solution, score)
 
-        self._repo.index.add([solution.source_file, SCORE_METADATA_FILE, LINEAGE_METADATA_FILE])
+        self._repo.index.add([str(Path(solution.source_file).as_posix()), SCORE_METADATA_FILE, LINEAGE_METADATA_FILE])
 
         commit_msg = (
             f"AVO v{solution.version}: geomean={score.geomean:.4f}\n\n"
@@ -116,9 +126,10 @@ class GitBackend:
         tag_name = f"v{version}"
         try:
             tag = self._repo.tags[tag_name]
+            self._workspace_file_path(source_file)
             blob = tag.commit.tree / source_file
             return blob.data_stream.read().decode("utf-8")
-        except (IndexError, KeyError):
+        except (IndexError, KeyError, ValueError):
             logger.warning("Could not read v%d from git", version)
             return None
 

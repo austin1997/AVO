@@ -95,6 +95,37 @@ class TestToolExecutor:
             result = executor.execute("read_file", {"path": "nope.txt"})
             assert "not found" in result.lower()
 
+    def test_file_tools_reject_path_traversal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            outside = Path(tmpdir) / "outside.txt"
+            outside.write_text("secret")
+            scorer = self._make_dummy_scorer()
+            kb = KnowledgeBase()
+            executor = ToolExecutor(workspace, "solution.py", scorer, kb)
+
+            read_result = executor.execute("read_file", {"path": "../outside.txt"})
+            write_result = executor.execute("write_file", {"path": "../outside.txt", "content": "changed"})
+
+            assert "escapes workspace" in read_result
+            assert "escapes workspace" in write_result
+            assert outside.read_text() == "secret"
+
+    def test_file_tools_reject_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+            outside = Path(tmpdir) / "outside.txt"
+            outside.write_text("secret")
+            scorer = self._make_dummy_scorer()
+            kb = KnowledgeBase()
+            executor = ToolExecutor(workspace, "solution.py", scorer, kb)
+
+            result = executor.execute("read_file", {"path": str(outside)})
+
+            assert "absolute paths are not allowed" in result
+
     def test_run_command(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)

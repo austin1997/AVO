@@ -206,14 +206,32 @@ class ToolExecutor:
             logger.error("Tool %s failed: %s", tool_name, e)
             return f"Error executing {tool_name}: {e}"
 
+    def _resolve_workspace_path(self, path: str) -> Path:
+        """Resolve a user-provided path and keep it inside the workspace.
+
+        The LLM is allowed to inspect and modify candidate files, but tool calls
+        should not escape the configured workspace through absolute paths or
+        ``..`` traversal.
+        """
+        raw_path = Path(path)
+        if raw_path.is_absolute():
+            raise ValueError(f"absolute paths are not allowed: {path}")
+        full = (self._workspace / raw_path).resolve(strict=False)
+        workspace = self._workspace.resolve(strict=False)
+        if full != workspace and not full.is_relative_to(workspace):
+            raise ValueError(f"path escapes workspace: {path}")
+        return full
+
     def _read_file(self, path: str) -> str:
-        full = self._workspace / path
+        full = self._resolve_workspace_path(path)
         if not full.exists():
             return f"File not found: {path}"
+        if not full.is_file():
+            return f"Not a file: {path}"
         return full.read_text(errors="replace")
 
     def _write_file(self, path: str, content: str) -> str:
-        full = self._workspace / path
+        full = self._resolve_workspace_path(path)
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(content)
         return f"Written {len(content)} bytes to {path}"
@@ -240,7 +258,7 @@ class ToolExecutor:
             return f"Command timed out after {timeout}s"
 
     def _evaluate_solution(self) -> str:
-        sol_path = self._workspace / self._solution_file
+        sol_path = self._resolve_workspace_path(self._solution_file)
         if not sol_path.exists():
             return f"Solution file not found: {self._solution_file}"
         source_code = sol_path.read_text()
@@ -282,7 +300,7 @@ class ToolExecutor:
         return f"Version {version} not found."
 
     def _submit_solution(self, description: str = "") -> str:
-        sol_path = self._workspace / self._solution_file
+        sol_path = self._resolve_workspace_path(self._solution_file)
         if not sol_path.exists():
             return f"Solution file not found: {self._solution_file}"
         source_code = sol_path.read_text()

@@ -24,6 +24,14 @@ class TestScore:
         s = Score(values={"a": 100.0}, passes_correctness=False)
         assert s.geomean == 0.0
 
+    def test_geomean_zero_when_any_dimension_is_zero(self):
+        s = Score(values={"fast": 100.0, "failed_case": 0.0}, passes_correctness=True)
+        assert s.geomean == 0.0
+
+    def test_geomean_uses_log_space_for_large_values(self):
+        s = Score(values={"a": 1e200, "b": 1e200}, passes_correctness=True)
+        assert s.geomean == pytest.approx(1e200)
+
     def test_dominates(self):
         s1 = Score(values={"a": 10.0, "b": 20.0}, passes_correctness=True)
         s2 = Score(values={"a": 8.0, "b": 15.0}, passes_correctness=True)
@@ -33,6 +41,11 @@ class TestScore:
     def test_dominates_equal_not_dominant(self):
         s1 = Score(values={"a": 10.0, "b": 20.0}, passes_correctness=True)
         s2 = Score(values={"a": 10.0, "b": 20.0}, passes_correctness=True)
+        assert not s1.dominates(s2)
+
+    def test_dominates_requires_same_configurations(self):
+        s1 = Score(values={"a": 10.0}, passes_correctness=True)
+        s2 = Score(values={"a": 8.0, "b": 100.0}, passes_correctness=True)
         assert not s1.dominates(s2)
 
     def test_improves_over(self):

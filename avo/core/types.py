@@ -9,9 +9,9 @@ Implements the fundamental structures from the AVO paper (arXiv:2603.24517):
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 
@@ -29,16 +29,21 @@ class Score:
 
     @property
     def geomean(self) -> float:
-        """Geometric mean across all configurations (paper's primary metric)."""
+        """Geometric mean across all configurations (paper's primary metric).
+
+        A zero or negative component represents no useful performance on that
+        configuration, so the aggregate score must be zero rather than silently
+        dropping the failing dimension. Log-space accumulation avoids overflow
+        and underflow for large benchmark suites or very large throughput values.
+        """
         if not self.values or not self.passes_correctness:
             return 0.0
-        vals = [v for v in self.values.values() if v > 0]
-        if not vals:
+        vals = list(self.values.values())
+        if any(v <= 0 for v in vals):
             return 0.0
-        product = 1.0
-        for v in vals:
-            product *= v
-        return product ** (1.0 / len(vals))
+        if len(vals) == 1:
+            return vals[0]
+        return math.exp(math.fsum(math.log(v) for v in vals) / len(vals))
 
     @property
     def is_zero(self) -> bool:
@@ -47,15 +52,20 @@ class Score:
         )
 
     def dominates(self, other: Score) -> bool:
-        """True if this score is >= other on all configs and > on at least one."""
+        """True if this score is >= other on all shared configs and > on one.
+
+        Dominance is only meaningful when both vectors cover the same benchmark
+        configurations. Otherwise a candidate could appear dominant by omitting
+        a configuration where it performs poorly.
+        """
         if self.is_zero:
             return False
         if other.is_zero:
             return True
+        if set(self.values) != set(other.values):
+            return False
         at_least_one_better = False
         for key in self.values:
-            if key not in other.values:
-                continue
             if self.values[key] < other.values[key]:
                 return False
             if self.values[key] > other.values[key]:
@@ -76,8 +86,9 @@ class Score:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Score:
+        values = {str(k): float(v) for k, v in data.get("values", {}).items()}
         return cls(
-            values=data.get("values", {}),
+            values=values,
             passes_correctness=data.get("passes_correctness", False),
             correctness_message=data.get("correctness_message", ""),
         )

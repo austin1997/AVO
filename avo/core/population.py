@@ -94,6 +94,7 @@ class Population:
             )
             return None
 
+        previous_best = self.best_score.geomean
         solution = Solution(
             source_code=source_code,
             version=next_version,
@@ -107,7 +108,7 @@ class Population:
             "Committed v%d: geomean=%.4f (prev best=%.4f)",
             next_version,
             score.geomean,
-            self.best_score.geomean,
+            previous_best,
         )
         return solution
 

@@ -1,3 +1,5 @@
+
+
 # AVO: Agentic Variation Operators for Autonomous Evolutionary Search
 
 A Python implementation of the AVO framework from [arXiv:2603.24517](https://arxiv.org/abs/2603.24517).
@@ -33,6 +35,8 @@ The agent autonomously decides what to consult, what to edit, and when to evalua
 | `avo/persistence/git_backend.py` | Git-based lineage persistence |
 
 ## Installation
+
+**Requirements:** Python >= 3.10
 
 ```bash
 pip install -e .
